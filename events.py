@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
+from typing import List, Optional
 from models import Event
 from datetime import date
 
 proj = FastAPI(title="AI Event Assistant")
+
 events_db: List[Event] = [
     Event(
         id=1,
@@ -22,46 +23,83 @@ events_db: List[Event] = [
         email="support@xyztech.com"
     )
 ]
-@proj.get("/events")
-def get_all_events():           						# Fetch all events
-    return events_db
-@proj.get("/events/search")
-def search_events(title: str, city: str="Bangalore"):   # Fetch event by title and city
-    result = []
-    for event in events_db:
-        if event.title.lower().count(title.lower())>0 and event.city.lower() == city.lower():
-            result.append(event)
-    if len(result)>0:
-        return result
-    return {"message": "No events found with title containing '"+title+"' and city as "+city}
-@proj.get("/events/{event_id}")
-def get_event(event_id: int):       					# Fetch event by ID
-    for event in events_db:
-        if event.id == event_id:
-            return {"event details": event}
-    return {"message": "Event with id "+str(event_id)+" is not available."}
 
-@proj.post("/events/add")
-def create_event(event_id:int, title:str, date:date=date.today(), organizer:str=None, email:str=None, city:str="Bangalore"):
+@proj.get("/events", response_model=List[Event])
+def get_all_events():
+    return events_db
+
+@proj.get("/events/search", response_model=List[Event])
+def search_events(title: str, city: str = "Bangalore"):
+    result = [
+        event for event in events_db
+        if title.lower() in event.title.lower() and event.city.lower() == city.lower()
+    ]
+    if result:
+        return result
+    raise HTTPException(
+        status_code=404,
+        detail=f"No events found with title containing '{title}' and city as {city}"
+    )
+
+@proj.get("/events/{event_id}", response_model=Event)
+def get_event(event_id: int):
     for event in events_db:
         if event.id == event_id:
-            return {"ERROR!!!":"Event ID "+str(event_id)+" already exists!!!"}
-    event = Event(event_id,title,date,organizer,city,email)
+            return event
+    raise HTTPException(status_code=404, detail=f"Event with id {event_id} is not available.")
+
+@proj.post("/events/add", response_model=Event)
+def create_event(
+    event_id: int,
+    title: str,
+    event_date: date = date.today(),
+    organizer: Optional[str] = None,
+    email: Optional[str] = None,
+    city: str = "Bangalore"
+):
+    for event in events_db:
+        if event.id == event_id:
+            raise HTTPException(status_code=400, detail=f"Event ID {event_id} already exists!!!")
+    event = Event(
+        id=event_id,
+        title=title,
+        event_date=event_date,
+        organizer=organizer,
+        city=city,
+        email=email
+    )
     events_db.append(event)
-    return {"message": "Event created successfully", "event": event}
-@proj.put("/events/replace/{event_id}")
-def update_event(event_id: int, title:str, date:date=date.today(), organizer:str=None, email:str=None, city:str="Bangalore"):
+    return event
+
+@proj.put("/events/replace/{event_id}", response_model=Event)
+def update_event(
+    event_id: int,
+    title: str,
+    event_date: date = date.today(),
+    organizer: Optional[str] = None,
+    email: Optional[str] = None,
+    city: str = "Bangalore"
+):
     for i, event in enumerate(events_db):
         if event.id == event_id:
-            updated_event = Event(event_id,title,date,organizer,city,email)
+            updated_event = Event(
+                id=event_id,
+                title=title,
+                event_date=event_date,
+                organizer=organizer,
+                city=city,
+                email=email
+            )
             events_db[i] = updated_event
-            return {"message": "Event updated", "event": updated_event}
-    return {"error": "Event not found"}
-@proj.delete("/events/cancel/{event_id}")
-def delete_event(event_id: int):
-    for event in events_db:
-        if event.id == event_id:
-            events_db.remove(event)
-            return {"message": f"Event with id {event_id} deleted"}
-    return {"error": "Event not found"}
+            return updated_event
+    raise HTTPException(status_code=404, detail="Event not found")
 
+@proj.delete("/events/{event_id}")
+def delete_event(event_id: int, user_role: str = "participant"):
+    if user_role != "admin":
+        raise HTTPException(status_code=403, detail="You are not allowed to delete events")
+    for event in events_db:
+        if event_id == event.id:
+            events_db.remove(event)
+            return {"message": "Event deleted successfully"}
+    raise HTTPException(status_code=404, detail="Event not found")
