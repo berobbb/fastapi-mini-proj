@@ -6,8 +6,8 @@ app=FastAPI()
 def homepage():
     return "hey there"
 @app.get("/welcome/{organizer_name}")
-def greet(orgranizer_name:str):
-    return f"Welcome {orgranizer_name} to Event Organizer Portal"
+def greet(organizer_name:str):
+    return f"Welcome {organizer_name} to Event Organizer Portal"
 
 @app.get("/event-count")
 def event_count(year:int):

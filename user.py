@@ -18,25 +18,5 @@ def user(user_id: int):
             return {"User Details": items}
     return {"error": "User id not defined"}
 
-books = [
-{"id": 1, "title": "Python Basics", "author": "Guido"},
-{"id": 2, "title": "FastAPI Deep Dive", "author": "Tiangolo"},
-]
-
-@app.get("/book/{book_id}")
-def book_search(book_id:int):
-    for book in books:
-        if book["id"]==book_id:
-            return book
-@app.get("/search")
-def author_name(author:str):
-    for book in books:
-        if book["author"]==author:
-            return book
-        else:
-            return "Not Found"
-
-
-
 if __name__=="__user__":
     uvicorn.run(app,host="localhost",port=8001)
