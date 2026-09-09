@@ -8,7 +8,7 @@ events_db: List[Event] = [
     Event(
         id=1,
         title="AI Bootcamp",
-        date="2025-10-24",
+        event_date="2025-10-24",
         organizer="Tech Club",
         city="Bangalore",
         email="host@techclub.com"
@@ -16,7 +16,7 @@ events_db: List[Event] = [
     Event(
         id=2,
         title="AI Webinar 2025",
-        date="2025-11-30",
+        event_date="2025-11-30",
         organizer="XYZ Tech",
         city="Chennai",
         email="support@xyztech.com"
@@ -56,22 +56,6 @@ def update_event(event_id: int, title:str, date:date=date.today(), organizer:str
             updated_event = Event(event_id,title,date,organizer,city,email)
             events_db[i] = updated_event
             return {"message": "Event updated", "event": updated_event}
-    return {"error": "Event not found"}
-@proj.patch("/events/edit/{event_id}")
-def change_event(event_id: int,title:str=None, date:date=None, organizer:str=None, city:str=None, email:str=None):
-    for i, event in enumerate(events_db):
-        if event.id == event_id:
-            if title!=None:
-                event.title = title
-            if date!=None:
-                event.date = date
-            if organizer!=None:
-                event.organizer = organizer
-            if city!=None:
-                event.city = city
-            if email!=None:
-                event.email = email
-            return {"message": "Event updated", "event": event}
     return {"error": "Event not found"}
 @proj.delete("/events/cancel/{event_id}")
 def delete_event(event_id: int):
