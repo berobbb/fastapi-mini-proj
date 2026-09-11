@@ -1,105 +1,63 @@
-from fastapi import FastAPI, HTTPException
-from typing import List, Optional
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from schema import EventSchema
 from models import Event
+from config import get_db
 from datetime import date
 
 proj = FastAPI(title="AI Event Assistant")
 
-events_db: List[Event] = [
-    Event(
-        id=1,
-        title="AI Bootcamp",
-        event_date="2025-10-24",
-        organizer="Tech Club",
-        city="Bangalore",
-        email="host@techclub.com"
-    ),
-    Event(
-        id=2,
-        title="AI Webinar 2025",
-        event_date="2025-11-30",
-        organizer="XYZ Tech",
-        city="Chennai",
-        email="support@xyztech.com"
-    )
-]
 
-@proj.get("/events", response_model=List[Event])
-def get_all_events():
-    return events_db
+@proj.post('/events/add')
+def create_event(event: EventSchema, db: Session = Depends(get_db)):
+    new_event = Event(**event.model_dump())
+    db.add(new_event)
+    db.commit()
+    db.refresh(new_event)
+    return {"message": "Event created successfully", "event": new_event}
 
-@proj.get("/events/search", response_model=List[Event])
-def search_events(title: str, city: str = "Bangalore"):
-    result = [
-        event for event in events_db
-        if title.lower() in event.title.lower() and event.city.lower() == city.lower()
-    ]
-    if result:
-        return result
-    raise HTTPException(
-        status_code=404,
-        detail=f"No events found with title containing '{title}' and city as {city}"
-    )
 
-@proj.get("/events/{event_id}", response_model=Event)
-def get_event(event_id: int):
-    for event in events_db:
-        if event.id == event_id:
-            return event
-    raise HTTPException(status_code=404, detail=f"Event with id {event_id} is not available.")
+@proj.get("/events")
+def get_all_events(db: Session = Depends(get_db)):
+    return db.query(Event).all()
 
-@proj.post("/events/add", response_model=Event)
-def create_event(
-    event_id: int,
-    title: str,
-    event_date: date = date.today(),
-    organizer: Optional[str] = None,
-    email: Optional[str] = None,
-    city: str = "Bangalore"
-):
-    for event in events_db:
-        if event.id == event_id:
-            raise HTTPException(status_code=400, detail=f"Event ID {event_id} already exists!!!")
-    event = Event(
-        id=event_id,
-        title=title,
-        event_date=event_date,
-        organizer=organizer,
-        city=city,
-        email=email
-    )
-    events_db.append(event)
-    return event
 
-@proj.put("/events/replace/{event_id}", response_model=Event)
-def update_event(
-    event_id: int,
-    title: str,
-    event_date: date = date.today(),
-    organizer: Optional[str] = None,
-    email: Optional[str] = None,
-    city: str = "Bangalore"
-):
-    for i, event in enumerate(events_db):
-        if event.id == event_id:
-            updated_event = Event(
-                id=event_id,
-                title=title,
-                event_date=event_date,
-                organizer=organizer,
-                city=city,
-                email=email
-            )
-            events_db[i] = updated_event
-            return updated_event
-    raise HTTPException(status_code=404, detail="Event not found")
+@proj.get("/events/{event_id}")
+def get_event(event_id: int, db: Session = Depends(get_db)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"event details": event}
 
-@proj.delete("/events/{event_id}")
-def delete_event(event_id: int, user_role: str = "participant"):
-    if user_role != "admin":
-        raise HTTPException(status_code=403, detail="You are not allowed to delete events")
-    for event in events_db:
-        if event_id == event.id:
-            events_db.remove(event)
-            return {"message": "Event deleted successfully"}
-    raise HTTPException(status_code=404, detail="Event not found")
+
+@proj.get("/events/upcoming")
+def upcoming_events(db: Session = Depends(get_db)):
+    today = date.today()
+    upcoming = db.query(Event).filter(Event.date >= today).order_by(Event.date).all()
+    return {"upcoming_events": upcoming}
+
+
+@proj.put("/events/change/{event_id}")
+def update_event(event: EventSchema, db: Session = Depends(get_db)):
+    upd_event = db.query(Event).filter(Event.id == event.id).first()
+    if not upd_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    upd_event.id = event.id
+    upd_event.title = event.title
+    upd_event.date = event.date
+    upd_event.organizer = event.organizer
+    upd_event.city = event.city
+    upd_event.email = event.email
+    db.commit()
+    db.refresh(upd_event)
+    return {"message": "Event updated", "event": upd_event}
+
+
+@proj.delete("/events/cancel/{event_id}")
+def cancel_event(event_id: int, db: Session = Depends(get_db)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    db.delete(event)
+    db.commit()
+    return {"message": f"Event with ID {event_id} cancelled"}
